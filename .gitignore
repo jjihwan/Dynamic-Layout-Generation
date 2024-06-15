@@ -1,0 +1,11 @@
+# cache
+__pycache__
+*.pyc
+
+# results
+plot
+
+# data
+model/
+datasets/
+fid/
