@@ -145,7 +145,7 @@ if __name__ == "__main__":
                 label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
 
-                # shift to center
+                # shift to center [0,1] -> [-1, 1]
                 bbox_in = 2 * (bbox - 0.5).to(args.device)
 
                 # set mask to label 5
@@ -162,7 +162,8 @@ if __name__ == "__main__":
                 eps_theta, e, b_0_reparam = model_ddpm.forward_t(layout_input, t=t, real_mask=mask, reparam=True) # [B, F, L, D]
 
                 if i == 0:
-                    bbox_generated, label_generated, mask_generated = model_ddpm.conditional_reverse_ddim(layout_input, cond='c')
+                    bbox_generated, label_generated, mask_generated = model_ddpm.conditional_reverse_ddim(layout_input[:9], cond='c')
+                    model_ddpm.model.train()
                     imgs_generated = []
                     imgs_gt = []
                     for j in range(bbox_generated.shape[1]):
@@ -176,6 +177,12 @@ if __name__ == "__main__":
                     # make gif
                     imageio.mimsave(os.path.join(args.save_dir, f'{nowname}/epoch{epoch}.gif'), imgs_generated, loop=0, duration=1000)
                     imageio.mimsave(os.path.join(args.save_dir, f'{nowname}/epoch{epoch}_gt.gif'), imgs_gt, loop=0, duration=1000)
+
+                    # imgs_generated = np.transpose(np.array(imgs_generated), (0, 3, 1, 2))
+                    # imgs_gt = np.transpose(np.array(imgs_gt), (0, 3, 1, 2))
+
+                    # if args.wandb:
+                    #     wandb.log({'generated': wandb.Video(imgs_generated, fps=4), 'gt': wandb.Video(imgs_gt, fps=4)})
 
                 eps_theta = rearrange(eps_theta, 'b f l d -> (b f) l d')
                 e = rearrange(e, 'b f l d -> (b f) l d')
@@ -222,8 +229,7 @@ if __name__ == "__main__":
                 diffusion_loss = mse_loss(e, eps_theta)
 
                 # total loss
-                # loss = diffusion_loss + constraint_loss + reconstruct_loss
-                loss = diffusion_loss
+                loss = diffusion_loss + constraint_loss + reconstruct_loss
 
                 pbar.set_postfix({'diffusion': diffusion_loss.item(), 'align': torch.mean(align_loss).item(),
                                   'overlap': torch.mean(overlap_loss).item(), 'reconstruct': reconstruct_loss.item()})

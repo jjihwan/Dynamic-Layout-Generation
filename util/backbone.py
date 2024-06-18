@@ -186,7 +186,6 @@ class Block(nn.Module):
             else:
                 x = self.norm1(x)
             x = self.norm2(x + self._ff_block(x))
-
         return x
 
     # self-attention block
@@ -211,6 +210,37 @@ class Block(nn.Module):
         x = self.linear2(self.dropout(self.activation(self.linear1(x))))
         return self.dropout2(x)
     
+class TemporalBlock(Block):
+    def __init__(
+        self,
+        d_model=512,
+        nhead=8,
+        dim_feedforward: int = 2048,
+        dropout: float = 0.0,
+        activation: Union[str, Callable[[Tensor], Tensor]] = F.relu,
+        batch_first: bool = True,
+        norm_first: bool = True,
+        device=None,
+        dtype=None,
+        # extension for diffusion
+        diffusion_step: int = 100,
+        timestep_type: str = 'adalayernorm',
+    ):
+        super().__init__(d_model, nhead, dim_feedforward, dropout, activation, batch_first, norm_first, device, dtype, diffusion_step, timestep_type)
+    
+    def forward(
+            self,
+            src: Tensor,
+            src_mask: Optional[Tensor] = None,
+            src_key_padding_mask: Optional[Tensor] = None,
+            timestep: Tensor = None,
+    ):
+        x = src
+        x = self.norm1(x, timestep)
+        x = x + self._sa_block(x, src_mask, src_key_padding_mask)
+        x = src + self._ff_block(self.norm2(x))
+        return x
+
 
 class TransformerEncoder(nn.Module):
     """
@@ -293,12 +323,23 @@ class TemporalTransformerEncoder(TransformerEncoder):
         self.temporal_pos_encoder = SinusoidalPosEmb(num_steps=num_frame, dim=dim_transformer).to(device)
         pos_i = torch.tensor([i for i in range(num_frame)]).to(device)
         self.temporal_pos_embed = self.temporal_pos_encoder(pos_i)
-        temporal_layer = Block(d_model=dim_transformer, nhead=nhead, dim_feedforward=dim_feedforward, diffusion_step=diffusion_step)
+        temporal_layer = TemporalBlock(d_model=dim_transformer, nhead=nhead, dim_feedforward=dim_feedforward, diffusion_step=diffusion_step)
         self.temporal_layers = _get_clones(temporal_layer, num_layers).to(device)
 
         if pretrained_model_path is not None and not is_train:
             self.from_pretrained(pretrained_model_path)
+        
+        if is_train:
+            self._initialize_temporal_layers()
+        
 
+    def _initialize_temporal_layers(self):
+        # for layer in self.temporal_layers:
+        #     nn.init.zeros_(layer.linear2.weight)
+        #     nn.init.zeros_(layer.linear2.bias)
+        #     nn.init.zeros_(layer.self_attn.out_proj.weight)
+        #     nn.init.zeros_(layer.self_attn.out_proj.bias)
+        return
 
 
 
