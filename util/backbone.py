@@ -8,6 +8,7 @@ import torch
 import torch.nn.functional as F
 from einops.layers.torch import Rearrange
 from torch import Tensor, nn
+from einops import rearrange, repeat
 
 
 def _get_clones(module, N):
@@ -218,8 +219,8 @@ class TransformerEncoder(nn.Module):
 
     __constants__ = ["norm"]
 
-    def __init__(self, num_layers=4, dim_seq=10, dim_transformer=512, nhead=8, dim_feedforward=2048,
-                 diffusion_step=100, device='cuda'):
+    def __init__(self, num_layers=4, dim_seq=10, dim_transformer=1024, nhead=8, dim_feedforward=2048,
+                 diffusion_step=1000, device='cuda'):
         super(TransformerEncoder, self).__init__()
 
         self.pos_encoder = SinusoidalPosEmb(num_steps=25, dim=dim_transformer).to(device)
@@ -231,6 +232,14 @@ class TransformerEncoder(nn.Module):
         self.layers = _get_clones(encoder_layer, num_layers).to(device)
         self.num_layers = num_layers
         self.layer_out = nn.Linear(in_features=dim_transformer, out_features=dim_seq).to(device)
+    
+    def from_pretrained(self, model_path):
+        model_dict = torch.load(model_path)
+        self.load_state_dict(model_dict)
+        self.eval()
+
+        return self
+
 
     def forward(
         self,
@@ -259,4 +268,120 @@ class TransformerEncoder(nn.Module):
         output = self.layer_out(output)
 
         return output
+
+
+class TemporalTransformerEncoder(TransformerEncoder):
+    def __init__(
+            self,
+            enable_temporal_layer: bool=True,
+            num_frame: int=4,
+            pretrained_model_path: str=None,
+            num_layers: int=4,
+            dim_seq: int=10,
+            dim_transformer: int=1024,
+            nhead: int=8,
+            dim_feedforward: int=2048,
+            diffusion_step: int=1000,
+            device: str='cuda',
+    ):
+        super().__init__(num_layers, dim_seq, dim_transformer, nhead, dim_feedforward, diffusion_step, device)
+        if pretrained_model_path is not None:
+            self.from_pretrained(pretrained_model_path)
+
+        self.temporal_pos_encoder = SinusoidalPosEmb(num_steps=num_frame, dim=dim_transformer).to(device)
+        pos_i = torch.tensor([i for i in range(num_frame)]).to(device)
+        self.temporal_pos_embed = self.temporal_pos_encoder(pos_i)
+
+
+        temporal_layer = Block(d_model=dim_transformer, nhead=nhead, dim_feedforward=dim_feedforward, diffusion_step=diffusion_step)
+        self.temporal_layers = _get_clones(temporal_layer, num_layers).to(device)
+        self.enable_temporal_layer = enable_temporal_layer
+
+    def forward(
+        self,
+        src: Tensor,
+        mask: Optional[Tensor] = None,
+        src_key_padding_mask: Optional[Tensor] = None,
+        timestep: Tensor = None,
+    ) -> Tensor:
+        b, t, l, d = src.shape
+        spatial_timestep = repeat(timestep, 'b -> (b t)', t=t).contiguous()
+        temporal_timestep = repeat(timestep, 'b -> (b l)', l=l).contiguous()
+
+        output = rearrange(src, 'b t l d -> (b t) l d').contiguous()
+
+        output = self.layer_in(output)
+        output = F.softplus(output)
+        output = output + self.pos_embed
+
+        for i, (layer, temporal_layer) in enumerate(zip(self.layers, self.temporal_layers)):
+            output = layer(
+                output,
+                src_mask=None,
+                src_key_padding_mask=None,
+                timestep=spatial_timestep,
+            )
+            if self.enable_temporal_layer:
+                output = rearrange(output, '(b t) l d -> (b l) t d', b=b)
+                if i == 0:
+                    output = output + self.temporal_pos_embed
+                output = temporal_layer(
+                    output,
+                    src_mask=None,
+                    src_key_padding_mask=None,
+                    timestep=temporal_timestep,
+                )
+                output = rearrange(output, '(b l) t d -> (b t) l d', b=b)
+
+            if i < self.num_layers - 1:
+                output = F.softplus(output)
+
+        output = self.layer_out(output)
+        output = rearrange(output, '(b t) l d -> b t l d', b=b)
+
+        return output
+            
+
+
+
+if __name__ == '__main__':
+    dataset = "publaynet"
+    if dataset == "publaynet":
+        dim_transformer = 1024
+        dim_seq = 10
+    elif dataset == "rico25":
+        dim_transformer = 512
+        dim_seq = 30
+
+    model = TemporalTransformerEncoder(
+        enable_temporal_layer=True,
+        pretrained_model_path=f"/home/kjh26720/code/LACE/model/{dataset}_best.pt",
+        num_frame=4,
+        num_layers=4,
+        dim_seq=dim_seq,
+        dim_transformer=dim_transformer,
+        nhead=16,
+        dim_feedforward=2048,
+        diffusion_step=1000,
+        device='cuda',
+        )
+
+    for name, param in model.named_parameters():
+        if "temporal_layers" not in name:
+            param.requires_grad_(False)
+
+    input = torch.randn(512, 4, 25, 10).to('cuda')
+    t = torch.randint(0, 1000, (512,)).to('cuda')
+    output = model(input, timestep=t)
+    print(output.mean(), output.std())
+    breakpoint()
+
+
+
+
+
+
+
+
+
 

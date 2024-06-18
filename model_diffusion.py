@@ -3,7 +3,7 @@ import torch.nn as nn
 from util.diffusion_utils import *
 import torch.nn.functional as F
 from typing import Dict, List, Optional, Tuple, Union
-from util.backbone import TransformerEncoder
+from util.backbone import TransformerEncoder, TemporalTransformerEncoder
 from util.visualization import save_image
 import matplotlib.pyplot as plt
 import matplotlib
@@ -87,6 +87,13 @@ class Diffusion(nn.Module):
        return t.to(self.device)
 
     def forward_t(self, l_0_batch, t, real_mask, reparam=False):
+        """
+        Args:
+            l_0_batch: torch.Tensor, shape (batch_size, seq_len, feature_dim) = (256, 25, 10)
+            t: torch.Tensor, shape (batch_size,) = (256,)
+            real_mask: torch.Tensor, shape (batch_size, seq_len) = (256, 25)
+            reparam: bool, whether to use reparameterization trick = True
+        """
 
         batch_size = l_0_batch.shape[0]
         e = torch.randn_like(l_0_batch).to(l_0_batch.device)
@@ -189,6 +196,91 @@ class Diffusion(nn.Module):
         bbox, label, mask = self.finalize(layout_t_0, self.num_class)
 
         return bbox, label, mask
+    
+
+class TemporalDiffusion(Diffusion):
+    def __init__(
+            self,
+            pretrained_model_path: str=None,
+            num_frame: int=4,
+            num_timesteps=1000,
+            nhead=8,
+            feature_dim=2048,
+            dim_transformer=512,
+            seq_dim=10,
+            num_layers=4,
+            device='cuda',
+            beta_schedule='cosine',
+            ddim_num_steps=50,
+            condition='None'
+    ):
+        super().__init__(num_timesteps, nhead, feature_dim, dim_transformer, seq_dim, num_layers, device, beta_schedule, ddim_num_steps, condition)
+        assert pretrained_model_path is not None, "Pretrained spatial diffusion model should be provided"
+
+        self.model = TemporalTransformerEncoder(
+            enable_temporal_layer=True,
+            pretrained_model_path=pretrained_model_path,
+            num_frame=num_frame,
+            num_layers=num_layers,
+            dim_seq=seq_dim,
+            dim_transformer=dim_transformer,
+            nhead=nhead,
+            dim_feedforward=feature_dim,
+            diffusion_step=num_timesteps,
+            device=device
+        )
+
+        for name, param in self.model.named_parameters():
+            if "temporal_layers" not in name:
+                param.requires_grad_(False)
+        
+        num_trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
+        num_all_params = sum(p.numel() for p in self.model.parameters())
+        print(f"Number of all parameters: {num_all_params}")
+        print(f"Number of trainable parameters: {num_trainable_params}")
+
+    
+    def forward_t(self, l_0_batch, t, real_mask, reparam=False):
+        """
+        Args:
+            l_0_batch: torch.Tensor, shape (batch_size, num_frame, seq_len, feature_dim) = (256, 4, 25, 10)
+            t: torch.Tensor, shape (batch_size,) = (256,)
+            real_mask: torch.Tensor, shape (batch_size, num_frame, seq_len) = (256, 4, 25)
+            reparam: bool, whether to use reparameterization trick = True
+        
+        Returns:
+            eps_theta: torch.Tensor, shape (batch_size, num_frame, seq_len, feature_dim)
+            e_all: torch.Tensor, shape (batch_size, num_frame, seq_len, feature_dim)
+            l_0_generate_reparam: torch.Tensor, shape (batch_size, num_frame, seq_len, feature_dim)
+        """
+
+        batch_size = l_0_batch.shape[0]
+        e = torch.randn_like(l_0_batch).to(l_0_batch.device)
+
+        l_t_noise = q_sample(l_0_batch, self.alphas_bar_sqrt,
+                             self.one_minus_alphas_bar_sqrt, t, noise=e)
+
+        # cond c
+        l_t_input_c = l_0_batch.clone()
+        l_t_input_c[:, :, self.num_class:] = l_t_noise[:, :, self.num_class:]
+
+
+        # l_t_input_all = torch.cat([l_t_noise, l_t_input_c, l_t_input_cwh, l_t_input_complete], dim=0)
+        # e_all = torch.cat([e, e, e, e], dim=0)
+        # t_all = torch.cat([t, t, t, t], dim=0)
+
+        eps_theta = self.model(l_t_input_c, timestep=t)
+
+        if reparam:
+            sqrt_one_minus_alpha_bar_t = extract(self.one_minus_alphas_bar_sqrt, t, l_t_input_c)
+            sqrt_alpha_bar_t = (1 - sqrt_one_minus_alpha_bar_t.square()).sqrt()
+            l_0_generate_reparam = 1 / sqrt_alpha_bar_t * (l_t_input_c - eps_theta * sqrt_one_minus_alpha_bar_t).to(self.device)
+
+            return eps_theta, e, l_0_generate_reparam
+        else:
+            return eps_theta, e, None
+    
+
 
 
 
