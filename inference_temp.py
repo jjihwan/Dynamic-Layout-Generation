@@ -1,5 +1,5 @@
 import os
-from fid.model import load_fidnet_v3
+# from fid.model import load_fidnet_v3
 from util.metric import compute_generative_model_scores, compute_maximum_iou, compute_overlap, compute_alignment
 import pickle as pk
 from tqdm import tqdm
@@ -16,35 +16,35 @@ import imageio
 from train_temp import make_dynamic
 
 
-def test_fid_feat(dataset_name, device='cuda', batch_size=20):
+# def test_fid_feat(dataset_name, device='cuda', batch_size=20):
 
-    if os.path.exists(f'./fid/feature/fid_feat_test_{dataset_name}.pk'):
-        feats_test = pk.load(open(f'./fid/feature/fid_feat_test_{dataset_name}.pk', 'rb'))
-        return feats_test
+#     if os.path.exists(f'./fid/feature/fid_feat_test_{dataset_name}.pk'):
+#         feats_test = pk.load(open(f'./fid/feature/fid_feat_test_{dataset_name}.pk', 'rb'))
+#         return feats_test
 
-    # prepare dataset
-    main_dataset, main_dataloader = init_dataset(dataset_name, './datasets', batch_size=batch_size,
-                                                 split='test', shuffle=False, transform=None)
+#     # prepare dataset
+#     main_dataset, main_dataloader = init_dataset(dataset_name, './datasets', batch_size=batch_size,
+#                                                  split='test', shuffle=False, transform=None)
 
-    fid_model = load_fidnet_v3(main_dataset, './fid/FIDNetV3', device=device)
-    feats_test = []
+#     fid_model = load_fidnet_v3(main_dataset, './fid/FIDNetV3', device=device)
+#     feats_test = []
 
-    with tqdm(enumerate(main_dataloader), total=len(main_dataloader), desc=f'Get feature for FID',
-              ncols=200) as pbar:
+#     with tqdm(enumerate(main_dataloader), total=len(main_dataloader), desc=f'Get feature for FID',
+#               ncols=200) as pbar:
 
-        for i, data in pbar:
+#         for i, data in pbar:
 
-            bbox, label, _, mask = sparse_to_dense(data)
-            label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
-            padding_mask = ~mask
+#             bbox, label, _, mask = sparse_to_dense(data)
+#             label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
+#             padding_mask = ~mask
 
-            with torch.set_grad_enabled(False):
-                feat = fid_model.extract_features(bbox, label, padding_mask)
-            feats_test.append(feat.detach().cpu())
+#             with torch.set_grad_enabled(False):
+#                 feat = fid_model.extract_features(bbox, label, padding_mask)
+#             feats_test.append(feat.detach().cpu())
 
-    pk.dump(feats_test, open(f'./fid/feature/fid_feat_test_{dataset_name}.pk', 'wb'))
+#     pk.dump(feats_test, open(f'./fid/feature/fid_feat_test_{dataset_name}.pk', 'wb'))
 
-    return feats_test
+#     return feats_test
 
 
 
@@ -195,7 +195,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment", default='c', help="experiment setting [uncond, c, cwh, complete, all]", type=str)
     parser.add_argument('--plot', default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--beautify', default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument("--plot_save_dir", default='./plot/test', help="dir to save generated plot of layouts", type=str)
+    parser.add_argument("--plot_save_dir", default='./plot', help="dir to save generated plot of layouts", type=str)
     parser.add_argument("--num_frame", default=4, help="number of frames for diffusion", type=int)
 
     args = parser.parse_args()
