@@ -307,7 +307,7 @@ def ddim_temp_cond_sample_loop(model, real_layout, timesteps, ddim_alphas, ddim_
     total_steps = timesteps.shape[0]
     # noise = 1 * torch.randn_like(real_layout).to(device)
 
-    for i, step in enumerate(time_range):
+    for i, step in enumerate(tqdm(time_range)):
         index = total_steps - i - 1
         t = torch.full((batch_size,), step, device=device, dtype=torch.long)
 

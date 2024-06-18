@@ -13,7 +13,7 @@ from util.seq_util import sparse_to_dense, loader_to_list, pad_until
 import argparse
 from model_diffusion import Diffusion, TemporalDiffusion
 import imageio
-from train_temp import make_dynamic
+from util.temporal import make_dynamic
 
 
 # def test_fid_feat(dataset_name, device='cuda', batch_size=20):
@@ -93,6 +93,7 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
 
             for i, data in pbar:
                 bbox, label, _, mask = sparse_to_dense(data)
+                breakpoint()
                 label, bbox, mask = pad_until(label, bbox, mask, max_seq_length=25)
                 label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
@@ -116,15 +117,15 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
                 # padding_mask = ~mask_generated
 
                 # test for errors
-                if torch.isnan(bbox[0, 0, 0]):
+                if torch.isnan(bbox[0, 0, 0, 0]):
                     print('not a number error')
                     return None
 
-                # accumulate align and overlap
-                align_norm = compute_alignment(bbox_generated, mask)
-                align_sum += torch.mean(align_norm)
-                overlap_score = compute_overlap(bbox_generated, mask)
-                overlap_sum += torch.mean(overlap_score)
+                # # accumulate align and overlap
+                # align_norm = compute_alignment(bbox_generated, mask)
+                # align_sum += torch.mean(align_norm)
+                # overlap_score = compute_overlap(bbox_generated, mask)
+                # overlap_sum += torch.mean(overlap_score)
 
                 # record for max_iou
                 # label_generated[label_generated == seq_dim - 5] = 0
@@ -147,23 +148,23 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
                         img = save_image(bbox_generated[:9,j], label_generated[:9,j], mask_generated[:9,j],
                                         draw_label=False, dataset=dataset_name)
                         imgs_generated.append(img)
-                        plt.figure(figsize=[12, 12])
-                        plt.imshow(img)
-                        plt.tight_layout()
-                        plt.savefig(os.path.join(save_dir, f'{dataset_name}_temp/{i}_{j}.png'))
-                        plt.close()
+                        # plt.figure(figsize=[12, 12])
+                        # plt.imshow(img)
+                        # plt.tight_layout()
+                        # plt.savefig(os.path.join(save_dir, f'{dataset_name}_temp/{i}_{j}.png'))
+                        # plt.close()
 
                         img = save_image(bbox[:9,j], label[:9,j], mask[:9,j], draw_label=False, dataset=dataset_name)
                         imgs_gt.append(img)
-                        plt.figure(figsize=[12, 12])
-                        plt.imshow(img)
-                        plt.tight_layout()
-                        plt.savefig(os.path.join(save_dir, f'{dataset_name}_temp/{i}_{j}_gt.png'))
-                        plt.close()
+                        # plt.figure(figsize=[12, 12])
+                        # plt.imshow(img)
+                        # plt.tight_layout()
+                        # plt.savefig(os.path.join(save_dir, f'{dataset_name}_temp/{i}_{j}_gt.png'))
+                        # plt.close()
                     
                     # make gif
-                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}.gif'), imgs_generated, loop=0)
-                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}_gt.gif'), imgs_gt, loop=0)
+                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}.gif'), imgs_generated, loop=0, duration=1000)
+                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}_gt.gif'), imgs_gt, loop=0, duration=1000)
 
     # maxiou = compute_maximum_iou(layouts_main, layout_generated)
     # result = compute_generative_model_scores(feats_test, feats_generate)
@@ -208,7 +209,7 @@ if __name__ == "__main__":
     num_class = train_dataset.num_classes + 1 # including padding; N+1
 
     # set up model
-    model_ddpm = TemporalDiffusion(pretrained_model_path=args.pretrain_model_path, num_frame=args.num_frame, is_train=False,
+    model_ddpm = TemporalDiffusion(pretrained_model_path=args.pretrained_model_path, num_frame=args.num_frame, is_train=False,
                             num_timesteps=1000, nhead=args.nhead, dim_transformer=args.dim_transformer,
                            feature_dim=args.feature_dim, seq_dim=num_class + 4, num_layers=args.nlayer,
                            device=args.device, ddim_num_steps=100)

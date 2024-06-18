@@ -238,6 +238,10 @@ class TransformerEncoder(nn.Module):
         self.load_state_dict(model_dict)
         self.eval()
 
+        # Freeze the model
+        for param in self.parameters():
+            param.requires_grad = False
+
         return self
 
 
@@ -274,6 +278,7 @@ class TemporalTransformerEncoder(TransformerEncoder):
     def __init__(
             self,
             enable_temporal_layer: bool=True,
+            is_train: bool=False,
             num_frame: int=4,
             pretrained_model_path: str=None,
             num_layers: int=4,
@@ -285,17 +290,23 @@ class TemporalTransformerEncoder(TransformerEncoder):
             device: str='cuda',
     ):
         super().__init__(num_layers, dim_seq, dim_transformer, nhead, dim_feedforward, diffusion_step, device)
-        if pretrained_model_path is not None:
+        # Load vanilla TransformerEncoder if train
+        if pretrained_model_path is not None and is_train:
             self.from_pretrained(pretrained_model_path)
 
+        self.enable_temporal_layer = enable_temporal_layer
         self.temporal_pos_encoder = SinusoidalPosEmb(num_steps=num_frame, dim=dim_transformer).to(device)
         pos_i = torch.tensor([i for i in range(num_frame)]).to(device)
         self.temporal_pos_embed = self.temporal_pos_encoder(pos_i)
-
-
         temporal_layer = Block(d_model=dim_transformer, nhead=nhead, dim_feedforward=dim_feedforward, diffusion_step=diffusion_step)
         self.temporal_layers = _get_clones(temporal_layer, num_layers).to(device)
-        self.enable_temporal_layer = enable_temporal_layer
+
+        if pretrained_model_path is not None and not is_train:
+            self.from_pretrained(pretrained_model_path)
+
+
+
+
 
     def forward(
         self,

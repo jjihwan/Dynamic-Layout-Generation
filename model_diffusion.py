@@ -219,6 +219,7 @@ class TemporalDiffusion(Diffusion):
 
         self.model = TemporalTransformerEncoder(
             enable_temporal_layer=True,
+            is_train=is_train,
             pretrained_model_path=pretrained_model_path,
             num_frame=num_frame,
             num_layers=num_layers,
