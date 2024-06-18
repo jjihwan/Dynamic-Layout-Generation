@@ -64,7 +64,7 @@ python train.py --device cuda:1 --dataset rico25 --no-load_pre --lr 1e-6 --n_sav
 
 ## Aknowledgement
 The source code and model are heavily based on [LACE](https://github.com/puar-playground/LACE).
-Thank you for the authors for open-source the model!🔥🔥🔥
+Thanks for the authors for open-source the model!🔥🔥🔥
 
 
 ## Reference
