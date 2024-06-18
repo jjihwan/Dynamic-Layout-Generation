@@ -268,18 +268,6 @@ def ddim_cond_sample_loop(model, real_layout, timesteps, ddim_alphas, ddim_alpha
 
         l_t[fix_mask] = real_layout[fix_mask]
 
-        # # plot inter
-        # print('hi here')
-        # l_t_label = torch.argmax(l_t[:, :, :6], dim=2)
-        # l_t_mask = (l_t_label != 5).clone().detach()
-        # l_bbox = torch.clamp(l_t[:1, :, 6:], min=-1, max=1) / 2 + 0.5
-        # img = save_image(l_bbox[:4], l_t_label[:4], l_t_mask[:4], draw_label=False)
-        # plt.figure(figsize=[12, 12])
-        # plt.imshow(img)
-        # plt.tight_layout()
-        # plt.savefig(f'./plot/test/conditional_test_t_{t[0]}.png')
-        # plt.close()
-
         l_t, pred_y0 = ddim_sample_step(model, l_t, t, index, ddim_alphas,
                                         ddim_alphas_prev, ddim_sigmas)
 
@@ -290,6 +278,50 @@ def ddim_cond_sample_loop(model, real_layout, timesteps, ddim_alphas, ddim_alpha
 
     return l_t, intermediates
 
+def ddim_temp_cond_sample_loop(model, real_layout, timesteps, ddim_alphas, ddim_alphas_prev, ddim_sigmas, stochastic=True, cond='c', ratio=0.2):
+
+    device = next(model.parameters()).device
+    batch_size, num_frame, seq_len, seq_dim = real_layout.shape
+    num_class = seq_dim - 4
+
+    real_label = torch.argmax(real_layout[..., :num_class], dim=3)
+    real_mask = (real_label != num_class-1).clone().detach()
+
+    # cond mask
+    if cond == 'complete': # ToDo
+        fix_mask = rand_fix(batch_size, real_mask, ratio=ratio, stochastic=True)
+    elif cond == 'c':
+        fix_mask = torch.zeros([batch_size, num_frame, seq_len, seq_dim]).to(torch.bool)
+        fix_mask[..., :num_class] = True
+    elif cond == 'cwh': # ToDo
+        fix_mask = torch.zeros([batch_size, seq_len, seq_dim]).to(torch.bool)
+        fix_ind = [x for x in range(num_class)] + [num_class + 2, num_class + 3]
+        fix_mask[:, :, fix_ind] = True
+    else:
+        raise Exception('cond must be c, cwh, or complete')
+
+    l_t = 1 * stochastic * torch.randn_like(torch.zeros([batch_size, num_frame, seq_len, seq_dim])).to(device)
+
+    intermediates = {'y_inter': [l_t], 'pred_y0': [l_t]}
+    time_range = np.flip(timesteps)
+    total_steps = timesteps.shape[0]
+    # noise = 1 * torch.randn_like(real_layout).to(device)
+
+    for i, step in enumerate(time_range):
+        index = total_steps - i - 1
+        t = torch.full((batch_size,), step, device=device, dtype=torch.long)
+
+        l_t[fix_mask] = real_layout[fix_mask]
+
+        l_t, pred_y0 = ddim_sample_step(model, l_t, t, index, ddim_alphas,
+                                        ddim_alphas_prev, ddim_sigmas)
+
+        l_t[fix_mask] = real_layout[fix_mask]
+
+        intermediates['y_inter'].append(l_t)
+        intermediates['pred_y0'].append(pred_y0)
+
+    return l_t, intermediates
 
 def ddim_refine_sample_loop(model, noisy_layout, timesteps, ddim_alphas, ddim_alphas_prev, ddim_sigmas):
 

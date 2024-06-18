@@ -84,7 +84,8 @@ if __name__ == "__main__":
     num_class = train_dataset.num_classes + 1
 
     # set up model
-    model_ddpm = TemporalDiffusion(pretrained_model_path=f"./model/{args.dataset}_best.pt", num_frame=args.num_frame, num_timesteps=1000, nhead=args.nhead, dim_transformer=args.dim_transformer,
+    model_ddpm = TemporalDiffusion(pretrained_model_path=f"./model/{args.dataset}_best.pt", num_frame=args.num_frame, is_train=True,
+                                   num_timesteps=1000, nhead=args.nhead, dim_transformer=args.dim_transformer,
                            feature_dim=args.feature_dim, seq_dim=num_class + 4, num_layers=args.nlayer,
                            device=device, ddim_num_steps=200)
 
@@ -146,7 +147,7 @@ if __name__ == "__main__":
             for i, data in pbar:
                 bbox, label, _, mask = sparse_to_dense(data)
                 label, bbox, mask = pad_until(label, bbox, mask, max_seq_length=25)
-                label, bbox, mask = make_dynamic(label, bbox, mask)
+                label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
 
                 # shift to center

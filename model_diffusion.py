@@ -203,6 +203,7 @@ class TemporalDiffusion(Diffusion):
             self,
             pretrained_model_path: str=None,
             num_frame: int=4,
+            is_train: bool=False,
             num_timesteps=1000,
             nhead=8,
             feature_dim=2048,
@@ -215,7 +216,6 @@ class TemporalDiffusion(Diffusion):
             condition='None'
     ):
         super().__init__(num_timesteps, nhead, feature_dim, dim_transformer, seq_dim, num_layers, device, beta_schedule, ddim_num_steps, condition)
-        assert pretrained_model_path is not None, "Pretrained spatial diffusion model should be provided"
 
         self.model = TemporalTransformerEncoder(
             enable_temporal_layer=True,
@@ -230,9 +230,10 @@ class TemporalDiffusion(Diffusion):
             device=device
         )
 
-        for name, param in self.model.named_parameters():
-            if "temporal_layers" not in name:
-                param.requires_grad_(False)
+        if is_train :
+            for name, param in self.model.named_parameters():
+                if "temporal_layers" not in name:
+                    param.requires_grad_(False)
         
         num_trainable_params = sum(p.numel() for p in self.model.parameters() if p.requires_grad)
         num_all_params = sum(p.numel() for p in self.model.parameters())
@@ -280,8 +281,26 @@ class TemporalDiffusion(Diffusion):
         else:
             return eps_theta, e, None
     
+    @staticmethod
+    def finalize(layout, num_class):
+        layout[..., num_class:] = torch.clamp(layout[..., num_class:], min=-1, max=1) / 2 + 0.5
+        bbox = layout[..., num_class:]
+        label = torch.argmax(layout[..., :num_class], dim=3)
+        mask = (label != num_class-1).clone().detach()
 
+        return bbox, label, mask
 
+    def conditional_reverse_ddim(self, real_layout, cond='c', ratio=0.2, stochastic=True):
+
+        self.model.eval()
+        layout_t_0, intermediates = \
+            ddim_temp_cond_sample_loop(self.model, real_layout, self.ddim_timesteps, self.ddim_alphas,
+                                  self.ddim_alphas_prev, self.ddim_sigmas, stochastic=stochastic, cond=cond,
+                                  ratio=ratio)
+
+        bbox, label, mask = self.finalize(layout_t_0, self.num_class)
+
+        return bbox, label, mask
 
 
 if __name__ == "__main__":
