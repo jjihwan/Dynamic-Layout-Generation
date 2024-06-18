@@ -1,6 +1,9 @@
 # Dynamic Layout Generation via Diffusion Models (WIP)
 
-## 🚀 Usage (Inference)
+## 🚀 Usage
+### Inference
+Results will be saved in `./plot`
+
 For PubLayNet:
 ```
 sh scripts/inference_publaynet.sh
@@ -8,6 +11,13 @@ sh scripts/inference_publaynet.sh
 For Rico:
 ```
 sh scripts/inference_rico.sh
+```
+
+
+### Training
+For PubLayNet:
+```
+sh scripts/train_publaynet.sh
 ```
 
 ## 1. Installation
