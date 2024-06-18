@@ -5,5 +5,7 @@ python3 train_temp.py \
     --n_save_epoch 10 \
     --num_frame 4 \
     --project_name "LACE-temporal" \
-    --experiment_name "publaynet" \
+    --experiment_name "publaynet-only-dloss-train-all" \
+    --no-freeze_original_model \
+    --save_dir "plot_train" \
     --wandb

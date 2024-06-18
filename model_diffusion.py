@@ -204,6 +204,7 @@ class TemporalDiffusion(Diffusion):
             pretrained_model_path: str=None,
             num_frame: int=4,
             is_train: bool=False,
+            freeze_original_model: bool=True,
             num_timesteps=1000,
             nhead=8,
             feature_dim=2048,
@@ -231,7 +232,7 @@ class TemporalDiffusion(Diffusion):
             device=device
         )
 
-        if is_train :
+        if is_train and freeze_original_model:
             for name, param in self.model.named_parameters():
                 if "temporal_layers" not in name:
                     param.requires_grad_(False)

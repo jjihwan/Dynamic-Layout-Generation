@@ -236,11 +236,6 @@ class TransformerEncoder(nn.Module):
     def from_pretrained(self, model_path):
         model_dict = torch.load(model_path)
         self.load_state_dict(model_dict)
-        self.eval()
-
-        # Freeze the model
-        for param in self.parameters():
-            param.requires_grad = False
 
         return self
 

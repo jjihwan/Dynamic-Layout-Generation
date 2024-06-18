@@ -4,6 +4,7 @@ __pycache__
 
 # results
 plot/
+plot_train/
 
 # training results
 model_trained/

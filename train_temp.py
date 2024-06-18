@@ -15,6 +15,7 @@ from test import test_all
 from einops import repeat, rearrange
 import datetime
 from util.temporal import make_dynamic
+from inference_temp import test_layout_cond
 
 
 if __name__ == "__main__":
@@ -45,9 +46,11 @@ if __name__ == "__main__":
     parser.add_argument("--gpu_devices", default=[0, 2, 3], type=int, nargs='+', help="")
     parser.add_argument("--device", default=None, help="which cuda to use", type=str)
     parser.add_argument("--num_frame", default=4, help="number of frames", type=int)
+    parser.add_argument("--freeze_original_model", default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--wandb", default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--project_name", default='LACE-temporal', help="wandb project name", type=str)
     parser.add_argument("--experiment_name", default='publaynet', help="wandb experiment name", type=str)
+    parser.add_argument("--save_dir", default='./plot', help="save dir", type=str)
     args = parser.parse_args()
 
     if args.device is None:
@@ -74,6 +77,7 @@ if __name__ == "__main__":
 
     # set up model
     model_ddpm = TemporalDiffusion(pretrained_model_path=f"./model/{args.dataset}_best.pt", num_frame=args.num_frame, is_train=True,
+                                   freeze_original_model=args.freeze_original_model,
                                    num_timesteps=1000, nhead=args.nhead, dim_transformer=args.dim_transformer,
                            feature_dim=args.feature_dim, seq_dim=num_class + 4, num_layers=args.nlayer,
                            device=device, ddim_num_steps=200)
@@ -109,6 +113,7 @@ if __name__ == "__main__":
     now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
     nowname = f'{args.experiment_name}_{now}'
     os.makedirs(f'./model_trained/{nowname}', exist_ok=True)
+    os.makedirs(os.path.join(args.save_dir, nowname), exist_ok=True)
 
     if args.wandb:
         import wandb
@@ -130,6 +135,7 @@ if __name__ == "__main__":
                 #     # torch.save(states, model_path)
                 #     fid_best = fid_total
                 #     print('New lowest fid model, saved')
+        
 
         with tqdm(enumerate(train_loader), total=len(train_loader), desc=f'train diffusion epoch {epoch}', ncols=200) as pbar:
 
@@ -154,6 +160,22 @@ if __name__ == "__main__":
                 t_f = repeat(t, 'b -> (b f)', f=args.num_frame)
 
                 eps_theta, e, b_0_reparam = model_ddpm.forward_t(layout_input, t=t, real_mask=mask, reparam=True) # [B, F, L, D]
+
+                if i == 0:
+                    bbox_generated, label_generated, mask_generated = model_ddpm.conditional_reverse_ddim(layout_input, cond='c')
+                    imgs_generated = []
+                    imgs_gt = []
+                    for j in range(bbox_generated.shape[1]):
+                        img = save_image(bbox_generated[:9,j], label_generated[:9,j], mask_generated[:9,j],
+                                        draw_label=False, dataset=args.dataset)
+                        imgs_generated.append(img)
+
+                        img = save_image(bbox[:9,j], label[:9,j], mask[:9,j], draw_label=False, dataset=args.dataset)
+                        imgs_gt.append(img)
+                    
+                    # make gif
+                    imageio.mimsave(os.path.join(args.save_dir, f'{nowname}/epoch{epoch}.gif'), imgs_generated, loop=0, duration=1000)
+                    imageio.mimsave(os.path.join(args.save_dir, f'{nowname}/epoch{epoch}_gt.gif'), imgs_gt, loop=0, duration=1000)
 
                 eps_theta = rearrange(eps_theta, 'b f l d -> (b f) l d')
                 e = rearrange(e, 'b f l d -> (b f) l d')
@@ -200,7 +222,8 @@ if __name__ == "__main__":
                 diffusion_loss = mse_loss(e, eps_theta)
 
                 # total loss
-                loss = diffusion_loss + constraint_loss + reconstruct_loss
+                # loss = diffusion_loss + constraint_loss + reconstruct_loss
+                loss = diffusion_loss
 
                 pbar.set_postfix({'diffusion': diffusion_loss.item(), 'align': torch.mean(align_loss).item(),
                                   'overlap': torch.mean(overlap_loss).item(), 'reconstruct': reconstruct_loss.item()})

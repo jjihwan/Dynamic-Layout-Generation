@@ -93,7 +93,6 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
 
             for i, data in pbar:
                 bbox, label, _, mask = sparse_to_dense(data)
-                breakpoint()
                 label, bbox, mask = pad_until(label, bbox, mask, max_seq_length=25)
                 label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
