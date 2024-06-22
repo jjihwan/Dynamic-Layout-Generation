@@ -11,7 +11,7 @@ import torch.optim as optim
 from util.constraint import *
 import math
 import os
-from test import test_all
+# from test import test_all
 from einops import repeat, rearrange
 import datetime
 from util.temporal import make_dynamic
