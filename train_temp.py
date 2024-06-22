@@ -51,6 +51,7 @@ if __name__ == "__main__":
     parser.add_argument("--project_name", default='LACE-temporal', help="wandb project name", type=str)
     parser.add_argument("--experiment_name", default='publaynet', help="wandb experiment name", type=str)
     parser.add_argument("--save_dir", default='./plot', help="save dir", type=str)
+    parser.add_argument("--aug_type", default='flip', help="augmentation type", type=str)
     args = parser.parse_args()
 
     if args.device is None:
@@ -142,7 +143,7 @@ if __name__ == "__main__":
             for i, data in pbar:
                 bbox, label, _, mask = sparse_to_dense(data)
                 label, bbox, mask = pad_until(label, bbox, mask, max_seq_length=25)
-                label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
+                label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame, type=args.aug_type)
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
 
                 # shift to center [0,1] -> [-1, 1]
