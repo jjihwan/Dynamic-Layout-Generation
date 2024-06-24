@@ -2,10 +2,12 @@ python3 train_temp.py \
     --device cuda \
     --dataset publaynet \
     --lr 1e-5 \
-    --n_save_epoch 10 \
+    --batch_size 1024 \
+    --n_save_epoch 20 \
     --num_frame 4 \
     --project_name "LACE-temporal" \
-    --experiment_name "publaynet-skipped-temporal-static" \
+    --align_weight 0 \
+    --experiment_name "publaynet-standard-tf-static-wo-laloss" \
     --freeze_original_model \
     --save_dir "plot_train" \
     --aug_type "static" \

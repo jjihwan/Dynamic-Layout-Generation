@@ -235,10 +235,16 @@ class TemporalBlock(Block):
             src_key_padding_mask: Optional[Tensor] = None,
             timestep: Tensor = None,
     ):
+        # bad implementation
+        # x = src
+        # x = self.norm1(x, timestep)
+        # x = x + self._sa_block(x, src_mask, src_key_padding_mask)
+        # x = src + self._ff_block(self.norm2(x))
         x = src
-        x = self.norm1(x, timestep)
-        x = x + self._sa_block(x, src_mask, src_key_padding_mask)
-        x = src + self._ff_block(self.norm2(x))
+        norm_x = self.norm1(x, timestep)
+        x = x + self._sa_block(norm_x, src_mask, src_key_padding_mask)
+        norm_x = self.norm2(x)
+        x = x + self._ff_block(norm_x)
         return x
 
 
