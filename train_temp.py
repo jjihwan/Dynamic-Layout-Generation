@@ -22,7 +22,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--nepoch", default=100000, help="number of training epochs", type=int)
-    parser.add_argument("--start_epoch", default=0, help="start epoch", type=int)
+    # parser.add_argument("--start_epoch", default=0, help="start epoch", type=int)
     parser.add_argument("--batch_size", default=256, help="batch_size", type=int)
     parser.add_argument("--lr", default=1e-5, help="learning rate", type=float)
     parser.add_argument("--sample_t_max", default=999, help="maximum t in training", type=int)
@@ -39,8 +39,11 @@ if __name__ == "__main__":
     parser.add_argument("--align_weight", default=1, help="the weight of alignment constraint", type=float)
     parser.add_argument("--align_type", default='local', help="local or global alignment constraint", type=str)
     parser.add_argument("--overlap_weight", default=1, help="the weight of overlap constraint", type=float)
-    parser.add_argument('--load_pre', default=False, action=argparse.BooleanOptionalAction)
-    parser.add_argument('--load_pre_spatial', default=False, action=argparse.BooleanOptionalAction)
+    # parser.add_argument('--load_pre', default=False, action=argparse.BooleanOptionalAction)
+    # parser.add_argument('--load_pre_spatial', default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--resume_from_ckpt', default=False, action=argparse.BooleanOptionalAction)
+    parser.add_argument('--resume_ckpt_path', default=None, help='resume from checkpoint', type=str)
+    parser.add_argument('--resume_id', default=None, help='wandb resume id', type=str)
     parser.add_argument('--beautify', default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument('--enable_test', default=False, action=argparse.BooleanOptionalAction)
     parser.add_argument("--gpu_devices", default=[0, 2, 3], type=int, nargs='+', help="")
@@ -61,8 +64,8 @@ if __name__ == "__main__":
     else:
         device = args.device
 
-    print(f'load_pre: {args.load_pre}, load_pre_spatial: {args.load_pre_spatial}, enable_test: {args.enable_test}, embed: {args.embed_type}')
-    print(f'dim_transformer: {args.dim_transformer}, n_layers: {args.nlayer}, nhead: {args.nhead}')
+    print(f'resume_from_ckpt: {args.resume_from_ckpt}, enable_test: {args.enable_test}')
+    print(f'embed: {args.embed_type}, dim_transformer: {args.dim_transformer}, n_layers: {args.nlayer}, nhead: {args.nhead}')
     print(f'align_type: {args.align_type}, align_weight: {args.align_weight}, overlap_weight: {args.overlap_weight}')
     print(f'device: {args.device}, wandb: {args.wandb}, num_frame: {args.num_frame}')
 
@@ -76,18 +79,26 @@ if __name__ == "__main__":
 
     num_class = train_dataset.num_classes + 1
 
+    if args.resume_from_ckpt:
+        resume_ckpt_path = args.resume_ckpt_path
+        pretrained_model_path = None
+        start_epoch = int(args.resume_ckpt_path.split('=')[-1].split('.')[0])
+    else:
+        resume_ckpt_path = None
+        pretrained_model_path = f"./model/{args.dataset}_best.pt"
+        
     # set up model
-    model_ddpm = TemporalDiffusion(pretrained_model_path=f"./model/{args.dataset}_best.pt", num_frame=args.num_frame, is_train=True,
+    model_ddpm = TemporalDiffusion(pretrained_model_path=pretrained_model_path, resume_ckpt_path=resume_ckpt_path, num_frame=args.num_frame, is_train=True,
                                    freeze_original_model=args.freeze_original_model,
                                    num_timesteps=1000, nhead=args.nhead, dim_transformer=args.dim_transformer,
                            feature_dim=args.feature_dim, seq_dim=num_class + 4, num_layers=args.nlayer,
                            device=device, ddim_num_steps=200)
 
-    if args.load_pre:
-        # state_dict = torch.load(f'./model/{args.embed_type}_{args.dataset}_1024_recent.pt', map_location='cpu')
-        # state_dict = torch.load(f'./model/publaynet_best.pt', map_location='cpu')
-        state_dict = torch.load(f'./model/{args.dataset}_temp_best.pt', map_location='cpu')
-        model_ddpm.load_diffusion_net(state_dict)
+    # if args.load_pre:
+    #     # state_dict = torch.load(f'./model/{args.embed_type}_{args.dataset}_1024_recent.pt', map_location='cpu')
+    #     # state_dict = torch.load(f'./model/publaynet_best.pt', map_location='cpu')
+    #     state_dict = torch.load(f'./model/{args.dataset}_temp_best.pt', map_location='cpu')
+    #     model_ddpm.load_diffusion_net(state_dict)
     
 
     if args.device is None:
@@ -97,12 +108,12 @@ if __name__ == "__main__":
         print('using single gpu')
         model_ddpm.to(device)
 
-    if args.load_pre and args.enable_test:
-        fid_best = test_all(model_ddpm, dataset_name=args.dataset, seq_dim=num_class + 4, batch_size=args.batch_size,
-                            beautify=args.beautify)
-        # fid_best = 1e10
-    else:
-        fid_best = 1e10
+    # if args.load_pre and args.enable_test:
+    #     # fid_best = test_all(model_ddpm, dataset_name=args.dataset, seq_dim=num_class + 4, batch_size=args.batch_size,
+    #     #                     beautify=args.beautify)
+    #     # fid_best = 1e10
+    # else:
+    #     fid_best = 1e10
 
     # optimizer
     optimizer = optim.Adam(model_ddpm.model.parameters(), lr=args.lr, weight_decay=0.0, betas=(0.9, 0.999), amsgrad=False, eps=1e-08)
@@ -111,16 +122,24 @@ if __name__ == "__main__":
     ema_helper = EMA(mu=0.9999)
     ema_helper.register(model_ddpm.model)
 
+    # if args.resume_from_ckpt:
+    #     now = resume_ckpt_path.split('/')[-2].split('_')[-1]
+    # else:
     now = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
+
     nowname = f'{args.experiment_name}_{now}'
+    print("name: ", nowname)
     os.makedirs(f'./model_trained/{nowname}', exist_ok=True)
     os.makedirs(os.path.join(args.save_dir, nowname), exist_ok=True)
 
     if args.wandb:
         import wandb
+        if args.resume_from_ckpt:
+            wandb.init(project=args.project_name, name=nowname, id=args.resume_id, config=vars(args), resume="must")
+
         wandb.init(project=args.project_name, name=nowname, config=vars(args))
 
-    for epoch in range(args.start_epoch, args.nepoch):
+    for epoch in range(start_epoch, args.nepoch):
         model_ddpm.model.train()
 
         if (epoch) % args.n_save_epoch == 0 and epoch != 0:

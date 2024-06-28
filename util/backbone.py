@@ -312,6 +312,7 @@ class TemporalTransformerEncoder(TransformerEncoder):
             is_train: bool=False,
             num_frame: int=4,
             pretrained_model_path: str=None,
+            resume_ckpt_path: str=None,
             num_layers: int=4,
             dim_seq: int=10,
             dim_transformer: int=1024,
@@ -334,6 +335,9 @@ class TemporalTransformerEncoder(TransformerEncoder):
 
         if pretrained_model_path is not None and not is_train:
             self.from_pretrained(pretrained_model_path)
+
+        if resume_ckpt_path is not None:
+            self.from_pretrained(resume_ckpt_path)
         
         if is_train:
             self._initialize_temporal_layers()

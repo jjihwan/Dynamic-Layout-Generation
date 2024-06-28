@@ -11,4 +11,7 @@ python3 train_temp.py \
     --freeze_original_model \
     --save_dir "plot_train" \
     --aug_type "static" \
+    --resume_from_ckpt \
+    --resume_ckpt_path "/home/youmong1204/code/Dynamic-Layout-Generation/model_trained/publaynet-standard-tf-static-wo-laloss_2024-06-25T04-28-10/epoch=000240.pt" \
+    --resume_id r8ugs1va \
     --wandb

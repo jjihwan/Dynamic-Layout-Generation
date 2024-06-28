@@ -202,6 +202,7 @@ class TemporalDiffusion(Diffusion):
     def __init__(
             self,
             pretrained_model_path: str=None,
+            resume_ckpt_path: str=None,
             num_frame: int=4,
             is_train: bool=False,
             freeze_original_model: bool=True,
@@ -222,6 +223,7 @@ class TemporalDiffusion(Diffusion):
             enable_temporal_layer=True,
             is_train=is_train,
             pretrained_model_path=pretrained_model_path,
+            resume_ckpt_path=resume_ckpt_path,
             num_frame=num_frame,
             num_layers=num_layers,
             dim_seq=seq_dim,
