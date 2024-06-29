@@ -363,7 +363,8 @@ class TemporalTransformerEncoder(TransformerEncoder):
     ) -> Tensor:
         b, t, l, d = src.shape
         spatial_timestep = repeat(timestep, 'b -> (b t)', t=t).contiguous()
-        temporal_timestep = repeat(timestep, 'b -> (b l t)', t=t, l=l).contiguous()
+        temporal_timestep = timestep
+        # temporal_timestep = repeat(timestep, 'b -> (b l t)', t=t, l=l).contiguous()
 
         output = rearrange(src, 'b t l d -> (b t) l d').contiguous()
 

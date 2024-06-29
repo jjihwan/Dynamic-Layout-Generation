@@ -7,7 +7,7 @@ python3 train_temp.py \
     --num_frame 4 \
     --project_name "LACE-temporal" \
     --align_weight 1 \
-    --experiment_name "publaynet-standard-tf-static" \
+    --experiment_name "publaynet-2d-tf-static" \
     --freeze_original_model \
     --save_dir "plot_train" \
     --aug_type "static" \
