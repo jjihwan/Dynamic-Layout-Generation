@@ -327,8 +327,8 @@ class TemporalTransformerEncoder(TransformerEncoder):
             self.from_pretrained(pretrained_model_path)
 
         self.enable_temporal_layer = enable_temporal_layer
-        self.temporal_pos_encoder = SinusoidalPosEmb(num_steps=num_frame, dim=dim_transformer).to(device)
-        pos_i = torch.tensor([i for i in range(num_frame)]).to(device)
+        self.temporal_pos_encoder = SinusoidalPosEmb(num_steps=num_frame * 25, dim=dim_transformer).to(device)
+        pos_i = torch.tensor([i for i in range(num_frame * 25)]).to(device)
         self.temporal_pos_embed = self.temporal_pos_encoder(pos_i)
         temporal_layer = TemporalBlock(d_model=dim_transformer, nhead=nhead, dim_feedforward=dim_feedforward, diffusion_step=diffusion_step)
         self.temporal_layers = _get_clones(temporal_layer, num_layers).to(device)
@@ -363,7 +363,7 @@ class TemporalTransformerEncoder(TransformerEncoder):
     ) -> Tensor:
         b, t, l, d = src.shape
         spatial_timestep = repeat(timestep, 'b -> (b t)', t=t).contiguous()
-        temporal_timestep = repeat(timestep, 'b -> (b l)', l=l).contiguous()
+        temporal_timestep = repeat(timestep, 'b -> (b l t)', t=t, l=l).contiguous()
 
         output = rearrange(src, 'b t l d -> (b t) l d').contiguous()
 
@@ -379,7 +379,7 @@ class TemporalTransformerEncoder(TransformerEncoder):
                 timestep=spatial_timestep,
             )
             if self.enable_temporal_layer:
-                output = rearrange(output, '(b t) l d -> (b l) t d', b=b)
+                output = rearrange(output, '(b t) l d -> b (t l) d', b=b)
                 if i == 0:
                     output = output + self.temporal_pos_embed
                 output = temporal_layer(
@@ -388,7 +388,7 @@ class TemporalTransformerEncoder(TransformerEncoder):
                     src_key_padding_mask=None,
                     timestep=temporal_timestep,
                 )
-                output = rearrange(output, '(b l) t d -> (b t) l d', b=b)
+                output = rearrange(output, 'b (t l) d -> (b t) l d', l=l)
 
             if i < self.num_layers - 1:
                 output = F.softplus(output)
