@@ -49,7 +49,7 @@ from util.temporal import make_dynamic
 
 
 
-def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', seq_dim=10,
+def test_layout_cond(model, model_name='publaynet', batch_size=256, cond='c', dataset_name='publaynet', seq_dim=10,
                      test_plot=False, save_dir='./plot/test', beautify=False):
     """
     Test the model with conditional generation
@@ -83,7 +83,7 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
     overlap_sum = 0
 
     if test_plot:
-        os.makedirs(os.path.join(save_dir, f"{dataset_name}_temp"), exist_ok=True)
+        os.makedirs(os.path.join(save_dir, f"{model_name}"), exist_ok=True)
 
     with torch.no_grad():
         # with tqdm(enumerate(main_dataloader), total=len(main_dataloader), desc=f'cond: {cond} generation',
@@ -94,7 +94,7 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
             for i, data in pbar:
                 bbox, label, _, mask = sparse_to_dense(data)
                 label, bbox, mask = pad_until(label, bbox, mask, max_seq_length=25)
-                label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame)
+                label, bbox, mask = make_dynamic(label, bbox, mask, args.num_frame, type='static')
                 label, bbox, mask = label.to(device), bbox.to(device), mask.to(device)
 
                 # shift to center
@@ -162,8 +162,8 @@ def test_layout_cond(model, batch_size=256, cond='c', dataset_name='publaynet', 
                         # plt.close()
                     
                     # make gif
-                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}.gif'), imgs_generated, loop=0, duration=1000)
-                    imageio.mimsave(os.path.join(save_dir, f'{dataset_name}_temp/{i}_gt.gif'), imgs_gt, loop=0, duration=1000)
+                    imageio.mimsave(os.path.join(save_dir, f'{model_name}/{i}.gif'), imgs_generated, loop=0, duration=1000)
+                    imageio.mimsave(os.path.join(save_dir, f'{model_name}/{i}_gt.gif'), imgs_gt, loop=0, duration=1000)
 
     # maxiou = compute_maximum_iou(layouts_main, layout_generated)
     # result = compute_generative_model_scores(feats_test, feats_generate)
@@ -215,11 +215,12 @@ if __name__ == "__main__":
 
     # state_dict = torch.load(f'./model/{args.dataset}_best.pt', map_location='cpu')
     # model_ddpm.load_diffusion_net(state_dict)
+    model_name = args.pretrained_model_path.split('/')[-2]
 
-
-    test_layout_cond(model_ddpm, batch_size=args.batch_size, cond=args.experiment,
-                                        dataset_name=args.dataset, seq_dim=num_class + 4,
-                                        test_plot=args.plot, save_dir=args.plot_save_dir, beautify=args.beautify)
+    test_layout_cond(model_ddpm, model_name=model_name,
+                    batch_size=args.batch_size, cond=args.experiment,
+                    dataset_name=args.dataset, seq_dim=num_class + 4,
+                    test_plot=args.plot, save_dir=args.plot_save_dir, beautify=args.beautify)
 
 
 

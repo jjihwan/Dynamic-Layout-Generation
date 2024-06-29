@@ -86,6 +86,7 @@ if __name__ == "__main__":
     else:
         resume_ckpt_path = None
         pretrained_model_path = f"./model/{args.dataset}_best.pt"
+        start_epoch=0
         
     # set up model
     model_ddpm = TemporalDiffusion(pretrained_model_path=pretrained_model_path, resume_ckpt_path=resume_ckpt_path, num_frame=args.num_frame, is_train=True,
@@ -117,6 +118,7 @@ if __name__ == "__main__":
 
     # optimizer
     optimizer = optim.Adam(model_ddpm.model.parameters(), lr=args.lr, weight_decay=0.0, betas=(0.9, 0.999), amsgrad=False, eps=1e-08)
+    scheduler = optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=10, T_mult=2)
     mse_loss = nn.MSELoss()
 
     ema_helper = EMA(mu=0.9999)
@@ -256,7 +258,8 @@ if __name__ == "__main__":
                 
                 if args.wandb:
                     wandb.log({'total': loss.item(), 'diffusion': diffusion_loss.item(), 'align': torch.mean(align_loss).item(),
-                               'overlap': torch.mean(overlap_loss).item(), 'reconstruct': reconstruct_loss.item()})
+                               'overlap': torch.mean(overlap_loss).item(), 'reconstruct': reconstruct_loss.item(),
+                               'lr': optimizer.param_groups[0]['lr']})
 
                 # optimize
                 optimizer.zero_grad()
@@ -264,4 +267,6 @@ if __name__ == "__main__":
                 torch.nn.utils.clip_grad_norm_(model_ddpm.model.parameters(), 1.0)
                 optimizer.step()
                 ema_helper.update(model_ddpm.model)
+            
+            scheduler.step()
 
